@@ -1,35 +1,156 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <title>Google Drive File Browser</title>
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+    #user-info {
+      margin: 10px 0;
+    }
+    button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
 <body>
-  <h3>Files in Public Google Drive Folder</h3>
+  <h2>📁 Google Drive File Browser</h2>
+  
+  <div id="auth-buttons">
+    <button onclick="handleAuthClick()">🔐 Sign In</button>
+  </div>
+  <div id="user-info" style="display: none;">
+    <p>Signed in as: <strong id="user-email"></strong></p>
+    <button onclick="handleSignOutClick()">🚪 Sign Out</button>
+  </div>
+
+  <hr>
+  <div id="status">Not signed in.</div>
   <ul id="file-list"></ul>
-hello all
+
   <script>
+    const CLIENT_ID = '347410332768-elvor0mtrlmbttpr0stqrfduq448i7sl.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyDWGDCy-4-31EmlYiIwrfpwoDAAjrdzvfc';
-    const FOLDER_ID = 'YOUR_PUBLIC_FOLDER_ID'; // Replace this
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly';
 
-    async function listPublicFiles() {
-      const url = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents&key=${API_KEY}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc`;
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
 
-      const response = await fetch(url);
-      const data = await response.json();
-
-      const files = data.files;
-      const listEl = document.getElementById('file-list');
-
-      if (!files || files.length === 0) {
-        listEl.innerHTML = '<li>No files found.</li>';
-        return;
-      }
-
-      files.forEach(file => {
-        const li = document.createElement('li');
-        li.innerHTML = `<a href="https://drive.google.com/file/d/${file.id}/view" target="_blank">${file.name}</a> (Modified: ${file.modifiedTime})`;
-        listEl.appendChild(li);
-      });
+    // Load GAPI
+    function gapiLoaded() {
+      gapi.load('client', initializeGapiClient);
     }
 
-    listPublicFiles();
+    async function initializeGapiClient() {
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: [DISCOVERY_DOC],
+      });
+      gapiInited = true;
+      maybeEnableButtons();
+    }
+
+    // Load GIS
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', // Set later
+      });
+      gisInited = true;
+      maybeEnableButtons();
+    }
+
+    function maybeEnableButtons() {
+      if (gapiInited && gisInited) {
+        document.getElementById('auth-buttons').style.display = 'block';
+      }
+    }
+
+    function handleAuthClick() {
+      tokenClient.callback = async (resp) => {
+        if (resp.error) {
+          document.getElementById('status').textContent = 'Error signing in.';
+          return console.error(resp);
+        }
+        document.getElementById('auth-buttons').style.display = 'none';
+        document.getElementById('user-info').style.display = 'block';
+
+        const token = gapi.client.getToken();
+        const idToken = token.id_token;
+
+        const userInfo = parseJwt(idToken);
+        document.getElementById('user-email').textContent = userInfo.email;
+
+        document.getElementById('status').textContent = 'Loading files...';
+        await listFiles();
+      };
+
+      if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } else {
+        tokenClient.requestAccessToken({ prompt: '' });
+      }
+    }
+
+    function handleSignOutClick() {
+      const token = gapi.client.getToken();
+      if (token !== null) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken('');
+        document.getElementById('user-info').style.display = 'none';
+        document.getElementById('auth-buttons').style.display = 'block';
+        document.getElementById('file-list').innerHTML = '';
+        document.getElementById('status').textContent = 'Signed out.';
+      }
+    }
+
+    async function listFiles() {
+      try {
+        const response = await gapi.client.drive.files.list({
+          pageSize: 10,
+          fields: 'files(id, name, modifiedTime)',
+          orderBy: 'modifiedTime desc'
+        });
+
+        const files = response.result.files;
+        const listEl = document.getElementById('file-list');
+        listEl.innerHTML = '';
+
+        if (!files || files.length === 0) {
+          document.getElementById('status').textContent = 'No files found.';
+          return;
+        }
+
+        document.getElementById('status').textContent = `Showing ${files.length} files:`;
+        files.forEach(file => {
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${file.name}</strong> — ${file.modifiedTime}`;
+          listEl.appendChild(li);
+        });
+
+      } catch (error) {
+        document.getElementById('status').textContent = 'Error listing files.';
+        console.error(error);
+      }
+    }
+
+    // Helper to decode ID token to get user email
+    function parseJwt(token) {
+      if (!token) return {};
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      return JSON.parse(jsonPayload);
+    }
   </script>
+
+  <!-- Load libraries -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
