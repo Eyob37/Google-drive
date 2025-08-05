@@ -1,99 +1,35 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Google Drive File List</title>
-</head>
 <body>
-  <h1>Drive Files</h1>
-  <button onclick="handleAuthClick()">Sign In</button>
-  <button onclick="handleSignOutClick()">Sign Out</button>
+  <h3>Files in Public Google Drive Folder</h3>
   <ul id="file-list"></ul>
-
+hello all
   <script>
-    const CLIENT_ID = '347410332768-elvor0mtrlmbttpr0stqrfduq448i7sl.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyDWGDCy-4-31EmlYiIwrfpwoDAAjrdzvfc';
-    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-    const SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+    const FOLDER_ID = 'YOUR_PUBLIC_FOLDER_ID'; // Replace this
 
-    let tokenClient;
-    let gapiInited = false;
-    let gisInited = false;
+    async function listPublicFiles() {
+      const url = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents&key=${API_KEY}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc`;
 
-    function gapiLoaded() {
-      gapi.load('client', initializeGapiClient);
-    }
+      const response = await fetch(url);
+      const data = await response.json();
 
-    async function initializeGapiClient() {
-      await gapi.client.init({
-        apiKey: API_KEY,
-        discoveryDocs: [DISCOVERY_DOC],
+      const files = data.files;
+      const listEl = document.getElementById('file-list');
+
+      if (!files || files.length === 0) {
+        listEl.innerHTML = '<li>No files found.</li>';
+        return;
+      }
+
+      files.forEach(file => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a href="https://drive.google.com/file/d/${file.id}/view" target="_blank">${file.name}</a> (Modified: ${file.modifiedTime})`;
+        listEl.appendChild(li);
       });
-      gapiInited = true;
     }
 
-    function gisLoaded() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '', // Will be defined later
-      });
-      gisInited = true;
-    }
-
-    function handleAuthClick() {
-      tokenClient.callback = async (resp) => {
-        if (resp.error !== undefined) {
-          throw (resp);
-        }
-        await listFiles();
-      };
-
-      if (gapi.client.getToken() === null) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      } else {
-        tokenClient.requestAccessToken({ prompt: '' });
-      }
-    }
-
-    function handleSignOutClick() {
-      const token = gapi.client.getToken();
-      if (token !== null) {
-        google.accounts.oauth2.revoke(token.access_token);
-        gapi.client.setToken('');
-        document.getElementById('file-list').innerHTML = '';
-      }
-    }
-
-    async function listFiles() {
-      try {
-        const response = await gapi.client.drive.files.list({
-          pageSize: 10,
-          fields: 'files(id, name, modifiedTime)',
-          orderBy: 'modifiedTime desc' // Change to name, createdTime, etc.
-        });
-
-        const files = response.result.files;
-        const listEl = document.getElementById('file-list');
-        listEl.innerHTML = '';
-
-        if (!files || files.length == 0) {
-          listEl.innerHTML = '<li>No files found.</li>';
-          return;
-        }
-
-        files.forEach((file) => {
-          const li = document.createElement('li');
-          li.textContent = `${file.name} (Last modified: ${file.modifiedTime})`;
-          listEl.appendChild(li);
-        });
-      } catch (err) {
-        console.error('Error listing files', err);
-      }
-    }
-
-    // Load the GAPI and GIS libraries
+    listPublicFiles();
   </script>
-  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
