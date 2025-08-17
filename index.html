@@ -1,34 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Google Drive API via Apps Script</title>
+  <title>Upload Image</title>
 </head>
 <body>
-  <button onclick="listFiles()">List Files</button>
-  <button onclick="createFile()">Create File</button>
+it will work
+  <h2>Upload Image to Google Drive</h2>
+  <form id="uploadForm">
+    <input type="file" id="imageFile" accept="image/*" />
+    <button type="submit">Upload Image</button>
+  </form>
   <pre id="output"></pre>
 
   <script>
-    const webAppUrl = "https://script.google.com/macros/s/AKfycbzWUN3IPzgEaFSnfH2-rFBFI9p4o6VArUnY6vmWKiDTNkbf7e5qUMLfhLqv_7qAez-Hlw/exec";
+    const form = document.getElementById("uploadForm");
 
-    async function listFiles() {
-      let res = await fetch(webAppUrl + "?action=list");
-      let data = await res.json();
-      document.getElementById("output").textContent = JSON.stringify(data, null, 2);
-    }
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById("imageFile");
+      const file = fileInput.files[0];
 
-    async function createFile() {
-      let res = await fetch(webAppUrl + "?action=create");
-      let text = await res.text();
-      document.getElementById("output").textContent = text;
-    }
+      if (!file) {
+        alert("Please select a file!");
+        return;
+      }
+
+      // ✅ Control file type
+      if (!file.type.startsWith("image/")) {
+        alert("Only images are allowed!");
+        return;
+      }
+
+      // ✅ Control file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("File too big! Max 2MB.");
+        return;
+      }
+
+      // Convert image to base64
+      const reader = new FileReader();
+      reader.onload = function() {
+        const base64Data = reader.result.split(",")[1];
+
+        // Call Google Apps Script
+        google.script.run.withSuccessHandler((msg) => {
+          document.getElementById("output").textContent = msg;
+        }).uploadImage(file.name, base64Data);
+      };
+      reader.readAsDataURL(file);
+    });
   </script>
 </body>
 </html>
-
-<!-- 
-deployment Id
-
-AKfycbzWUN3IPzgEaFSnfH2-rFBFI9p4o6VArUnY6vmWKiDTNkbf7e5qUMLfhLqv_7qAez-Hlw
-
- -->
