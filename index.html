@@ -4,48 +4,34 @@
   <title>Upload Image</title>
 </head>
 <body>
-it will work
   <h2>Upload Image to Google Drive</h2>
-  <form id="uploadForm">
-    <input type="file" id="imageFile" accept="image/*" />
-    <button type="submit">Upload Image</button>
-  </form>
+  <input type="file" id="imageFile" accept="image/*" />
+  <button id="uploadBtn">Upload</button>
   <pre id="output"></pre>
 
   <script>
-    const form = document.getElementById("uploadForm");
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbya-mZzxsjAvvT5_xv8r1bDZcPKtF7nlEfYNJ6v4Zs/dev"; // Apps Script URL
 
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
+    document.getElementById("uploadBtn").addEventListener("click", async () => {
       const fileInput = document.getElementById("imageFile");
       const file = fileInput.files[0];
 
-      if (!file) {
-        alert("Please select a file!");
-        return;
-      }
+      if (!file) return alert("Select a file!");
+      if (!file.type.startsWith("image/")) return alert("Only images!");
+      if (file.size > 2 * 1024 * 1024) return alert("Max 2MB!");
 
-      // ✅ Control file type
-      if (!file.type.startsWith("image/")) {
-        alert("Only images are allowed!");
-        return;
-      }
-
-      // ✅ Control file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        alert("File too big! Max 2MB.");
-        return;
-      }
-
-      // Convert image to base64
       const reader = new FileReader();
-      reader.onload = function() {
+      reader.onload = async function() {
         const base64Data = reader.result.split(",")[1];
 
-        // Call Google Apps Script
-        google.script.run.withSuccessHandler((msg) => {
-          document.getElementById("output").textContent = msg;
-        }).uploadImage(file.name, base64Data);
+        const res = await fetch(webAppUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: file.name, base64Data })
+        });
+
+        const data = await res.json();
+        document.getElementById("output").textContent = "Uploaded: " + data.url;
       };
       reader.readAsDataURL(file);
     });
